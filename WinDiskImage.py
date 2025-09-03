@@ -773,4 +773,46 @@ class MainWindow(QMainWindow):
         }
 
         self.worker = ImagingWorker(args)
-        self.worker.progress
+        self.worker.progress.connect(self.progress.setValue)
+        self.worker.status.connect(self.on_status)
+        self.worker.speed_eta.connect(self.speed_label.setText)
+        self.worker.finished.connect(self.on_finished)
+        self.worker.failed.connect(self.on_failed)
+
+        # Avvia il thread
+        self.worker.start()
+
+    def on_status(self, msg: str):
+        self.log.append(msg)
+
+    def on_cancel(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.cancel()
+            self.cancel_btn.setEnabled(False)
+            self.log.append("Cancellation requested...")
+
+    def on_finished(self, result: Dict[str, Any]):
+        self.set_busy(False)
+        self.progress.setValue(100)
+        self.log.append(f"Completed: {json.dumps(result, ensure_ascii=False)}")
+        if result.get("status") == "OK":
+            QMessageBox.information(self, "Success", f"{result.get('mode')} operation completed successfully.")
+        else:
+            QMessageBox.critical(self, "Error", f"Operation failed:\n{result}")
+        self.load_disks()
+
+    def on_failed(self, err: str):
+        self.set_busy(False)
+        self.log.append(f"Error: {err}")
+        QMessageBox.critical(self, "Error", err)
+
+
+# =========================
+# Avvio applicazione
+# =========================
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    win = MainWindow()
+    win.show()
+    sys.exit(app.exec())
